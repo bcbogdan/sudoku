@@ -1,5 +1,6 @@
 import type CV from '@techstark/opencv-js';
 import type { Board } from './sudoku';
+import { hasDarkBackground } from './image-polarity';
 let cvPromise: Promise<{ cv: typeof CV }> | undefined;
 function loadCV(): Promise<{ cv: typeof CV }> {
   if (cvPromise) return cvPromise;
@@ -68,6 +69,8 @@ export async function readSudoku(
       blur = own(new cv.Mat()),
       binary = own(new cv.Mat());
     cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+    // Normalize white-on-dark screenshots before grid detection and digit extraction.
+    if (hasDarkBackground(gray.data, gray.cols, gray.rows)) cv.bitwise_not(gray, gray);
     cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0);
     cv.adaptiveThreshold(
       blur,

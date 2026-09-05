@@ -55,6 +55,8 @@ This task configures deployment but does not create, link, or publish a Vercel p
 
 This is a reconstruction from the referenced conversation's feature requirements; the previous `/home/oai/src` source and Git history were not accessible. No existing app source was copied or committed. The original uploaded image is included only as a test fixture, outside `public`.
 
+The reader detects predominantly dark backgrounds and reverses their contrast before grid detection and OCR. Regression fixtures include the original paper photo (32 clues) and `tests/fixtures/dark-highlighted.jpeg`, a white-on-dark screenshot with colored highlights (22 clues). Its expected board is in `dark-highlighted.json`; `tests/dark-image.spec.ts` checks all 81 cells through the actual upload flow.
+
 OCR can miss or misread digits in rotated, blurry, shadowed or unusual-font photos. Always review clues. A successful original-image regression is not a guarantee for other photos. Persistence is device-local; accounts, synchronization and full-library export are not implemented.
 
 ## Storage and tests
