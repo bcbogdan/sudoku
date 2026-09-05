@@ -55,7 +55,7 @@ This task configures deployment but does not create, link, or publish a Vercel p
 
 This is a reconstruction from the referenced conversation's feature requirements; the previous `/home/oai/src` source and Git history were not accessible. No existing app source was copied or committed. The original uploaded image is included only as a test fixture, outside `public`.
 
-OCR can miss or misread digits in rotated, blurry, shadowed or unusual-font photos. Always review clues. A successful original-image regression is not a guarantee for other photos. Persistence is device-local; accounts, synchronization, export and deletion are not implemented.
+OCR can miss or misread digits in rotated, blurry, shadowed or unusual-font photos. Always review clues. A successful original-image regression is not a guarantee for other photos. Persistence is device-local; accounts, synchronization and full-library export are not implemented.
 
 ## Storage and tests
 
@@ -72,3 +72,11 @@ Layouts adapt to narrow phones, tablets and landscape screens. The keypad uses t
 ## Formatting
 
 Prettier is installed as an exact development dependency with shared settings in `.prettierrc.json`. Run `npm run format` to format source, styles, JSON and documentation, or `npm run format:check` to verify formatting in CI. Generated framework files, OCR assets, dependency lockfiles and test output are excluded in `.prettierignore`. Editors with Prettier support use the same repository settings.
+
+## Sharing and removal
+
+Choose **Share puzzle** on a draft, puzzle details or attempt screen. Copy the displayed link (manual selection is available if clipboard access is unavailable). Its format is `/?p=<encodedPuzzle>&n=<name>`: `p` is the URL-safe Base64 encoding of 81 row-major digits, where `0` means empty; `n` is the URL-encoded name. Only original clues and the name are included, never the photo, solution or attempt history.
+
+Opening the link validates the data and creates a local draft with a new ID and timestamp for the recipient to review. Reopening the same clues/name link reuses that imported local puzzle and preserves its attempts; refreshing switches to the local puzzle URL. Malformed or conflicting boards are rejected without saving. Shared drafts can still require corrections before they have a unique solution.
+
+Choose **Remove puzzle** from a draft, puzzle details or attempt screen. A confirmation names the puzzle and warns that all local attempts will also be removed. Cancelling changes nothing. Confirming deletes the puzzle, stored photo and all attempts in one IndexedDB transaction; other puzzles are untouched. Removing a local puzzle does not revoke existing sharing links, which can still create another local copy.

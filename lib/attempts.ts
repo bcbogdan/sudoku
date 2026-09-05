@@ -9,6 +9,7 @@ export type Puzzle = {
   image?: Blob;
   uncertain: number[];
   revision: number;
+  shareKey?: string;
 };
 export type Position = { board: Board; notes: number[][]; mistakes: number };
 export type Move = {

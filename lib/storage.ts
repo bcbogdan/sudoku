@@ -1,3 +1,4 @@
+import { decodeSharedPuzzle } from './sharing';
 import { applyMove, initialPosition, randomName, type Puzzle, type Attempt } from './attempts';
 import { emptyBoard, solve, type Board } from './sudoku';
 let connection: Promise<IDBDatabase> | undefined;
@@ -227,6 +228,63 @@ export async function renamePuzzle(puzzle: Puzzle, input: string): Promise<Puzzl
       const updated = { ...current, name, updatedAt: Date.now(), revision: current.revision + 1 };
       store.put(updated);
       done(updated);
+    };
+  });
+}
+
+// Serialized read/write transactions make repeated imports idempotent, including
+// React Strict Mode remounts and concurrent tabs. No schema migration is needed.
+export async function importSharedPuzzle(encoded: string, name: string | null): Promise<Puzzle> {
+  const shared = decodeSharedPuzzle(encoded, name);
+  return write(['puzzles'], (tx, done) => {
+    const store = tx.objectStore('puzzles');
+    const request = store.getAll();
+    request.onsuccess = () => {
+      const existing = (request.result as Puzzle[]).find((p) => p.shareKey === shared.shareKey);
+      if (existing) {
+        done(existing);
+        return;
+      }
+      const now = Date.now();
+      const puzzle: Puzzle = {
+        id: crypto.randomUUID(),
+        name: shared.name,
+        clues: shared.clues,
+        createdAt: now,
+        updatedAt: now,
+        status: 'draft',
+        uncertain: [],
+        revision: 0,
+        shareKey: shared.shareKey,
+      };
+      store.add(puzzle);
+      done(puzzle);
+    };
+  });
+}
+
+export async function removePuzzle(puzzle: Puzzle): Promise<void> {
+  return write(['puzzles', 'attempts'], (tx, done, fail) => {
+    const store = tx.objectStore('puzzles');
+    const request = store.get(puzzle.id);
+    request.onsuccess = () => {
+      const current = request.result as Puzzle | undefined;
+      if (current && current.revision !== puzzle.revision) {
+        fail(new Error('This puzzle changed in another tab. Reload before removing it.'));
+        return;
+      }
+      store.delete(puzzle.id);
+      const cursorRequest = tx
+        .objectStore('attempts')
+        .index('puzzleId')
+        .openCursor(IDBKeyRange.only(puzzle.id));
+      cursorRequest.onsuccess = () => {
+        const cursor = cursorRequest.result;
+        if (cursor) {
+          cursor.delete();
+          cursor.continue();
+        } else done(undefined);
+      };
     };
   });
 }

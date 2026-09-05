@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { puzzleShareURL } from '@/lib/sharing';
 import { peers, solve } from '@/lib/sudoku';
 import {
   durationLabel,
@@ -11,6 +12,8 @@ import {
 } from '@/lib/attempts';
 import {
   createPuzzle,
+  importSharedPuzzle,
+  removePuzzle,
   listAttempts,
   listPuzzles,
   recordMove,
@@ -44,12 +47,14 @@ export default function Sudoku() {
     [message, setMessage] = useState(''),
     [now, setNow] = useState(0);
   const saving = useRef(false);
+  const [shareLink, setShareLink] = useState('');
+  const [copyMessage, setCopyMessage] = useState('');
   const [editingName, setEditingName] = useState(false),
     [nameValue, setNameValue] = useState('');
   useEffect(() => {
     let cancelled = false;
     Promise.all([listPuzzles(), listAttempts()])
-      .then(([saved, plays]) => {
+      .then(async ([saved, plays]) => {
         if (cancelled) return;
         setPuzzles(saved);
         setAttempts(plays);
@@ -57,6 +62,15 @@ export default function Sudoku() {
         const query = new URLSearchParams(window.location.search),
           id = query.get('puzzle'),
           attemptId = query.get('attempt');
+        if (query.has('p')) {
+          const imported = await importSharedPuzzle(query.get('p')!, query.get('n'));
+          if (cancelled) return;
+          setPuzzle(imported);
+          setPuzzles(await listPuzzles());
+          setScreen(imported.status === 'draft' ? 'review' : 'detail');
+          window.history.replaceState(null, '', puzzleURL(imported.id));
+          return;
+        }
         if (query.has('new')) setScreen('create');
         else if (id) {
           const p = saved.find((p) => p.id === id);
@@ -172,6 +186,44 @@ export default function Sudoku() {
       }
     });
   }
+  async function removeCurrentPuzzle() {
+    if (!puzzle || saving.current) return;
+    if (
+      !window.confirm(
+        `Remove “${puzzle.name}” and all its attempts from this device? This cannot be undone.`,
+      )
+    )
+      return;
+    await action(async () => {
+      await removePuzzle(puzzle);
+      window.location.assign('/');
+    });
+  }
+  const puzzleActions = puzzle ? (
+    <div className="puzzle-actions">
+      <button
+        className="secondary"
+        disabled={busy}
+        onClick={() => {
+          try {
+            setShareLink(puzzleShareURL(window.location.origin, puzzle.clues, puzzle.name));
+            setCopyMessage('');
+          } catch (error) {
+            setMessage(error instanceof Error ? error.message : 'Could not share this puzzle.');
+          }
+        }}
+      >
+        Share puzzle
+      </button>
+      <button
+        className="secondary remove-button"
+        disabled={busy}
+        onClick={() => void removeCurrentPuzzle()}
+      >
+        Remove puzzle
+      </button>
+    </div>
+  ) : null;
   const header = (
     <header>
       <a href="/" className="brand">
@@ -375,6 +427,7 @@ export default function Sudoku() {
               ＋ New attempt
             </button>
           </div>
+          {puzzleActions}
           <h2>Attempts</h2>
           <div className="attempt-list">
             {attempts
@@ -602,6 +655,37 @@ export default function Sudoku() {
               Select a square, then use 1–9 or Delete. Your draft saves automatically.
             </p>
           )}
+        </section>
+      ) : null}
+      {screen === 'play' || screen === 'review' ? puzzleActions : null}
+      {shareLink ? (
+        <section className="share-panel" aria-label="Share puzzle link">
+          <div>
+            <h2>Share this puzzle</h2>
+            <button className="secondary" onClick={() => setShareLink('')}>
+              Close share link
+            </button>
+          </div>
+          <p>
+            Only the original clues and name are shared. Opening the link saves a copy in the
+            recipient’s browser.
+          </p>
+          <label htmlFor="share-link">Puzzle link</label>
+          <input id="share-link" readOnly value={shareLink} onFocus={(e) => e.target.select()} />
+          <button
+            className="primary"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(shareLink);
+                setCopyMessage('Link copied.');
+              } catch {
+                setCopyMessage('Select the link above and copy it manually.');
+              }
+            }}
+          >
+            Copy link
+          </button>
+          <span role="status">{copyMessage}</span>
         </section>
       ) : null}
       <p className="status" role="status" aria-live="polite">

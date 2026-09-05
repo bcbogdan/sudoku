@@ -872,3 +872,54 @@ nav a {
     font-size: 22px;
   }
 }
+.puzzle-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin: 18px 0;
+}
+.remove-button {
+  color: var(--error);
+}
+.share-panel {
+  max-width: 660px;
+  margin: 24px auto;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.share-panel > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.share-panel p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.share-panel label {
+  display: block;
+  font-size: 14px;
+  margin: 12px 0 6px;
+}
+.share-panel input {
+  width: 100%;
+  min-width: 0;
+  font-size: 16px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.share-panel [role='status'] {
+  display: inline-block;
+  margin: 12px;
+  font-size: 14px;
+}
