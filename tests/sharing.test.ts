@@ -73,3 +73,48 @@ test('stale deletion is rejected after a concurrent rename', async () => {
   await assert.rejects(removePuzzle(p), /another tab/);
   assert.ok((await listPuzzles()).some((x) => x.id === renamed.id));
 });
+
+test('compact encoding preserves empty cells and stays below 48 characters', () => {
+  for (const board of [
+    Array(81).fill(0),
+    clues,
+    ...clues.map((_, i) => clues.map((v, j) => (j <= i ? v : 0))),
+  ]) {
+    const encoded = encodePuzzle(board);
+    assert.ok(encoded.length <= 47);
+    assert.deepEqual(decodeSharedPuzzle(encoded, 'Test').clues, board);
+  }
+  assert.equal(encodePuzzle(Array(81).fill(0)), '1.A');
+});
+test('old and compact links identify the same local import', async () => {
+  const legacy = btoa(clues.join(''));
+  assert.deepEqual(decodeSharedPuzzle(legacy, 'Legacy').clues, clues);
+  const old = await importSharedPuzzle(legacy, 'Legacy');
+  assert.equal((await importSharedPuzzle(encodePuzzle(clues), 'Legacy')).id, old.id);
+  // Simulate a record saved by the released legacy decoder, before this update.
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.open('sudoku-local', 1);
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction('puzzles', 'readwrite');
+      tx.objectStore('puzzles').put({ ...old, shareKey: JSON.stringify([legacy, 'Legacy']) });
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onabort = () => reject(tx.error);
+    };
+    request.onerror = () => reject(request.error);
+  });
+  assert.equal((await importSharedPuzzle(encodePuzzle(clues), 'Legacy')).id, old.id);
+});
+test('oversized and malformed packed values are rejected', () => {
+  for (const value of ['1.', '1.!', '2.A', '1.' + '_'.repeat(45), '1.' + 'A'.repeat(46)])
+    assert.throws(() => decodeSharedPuzzle(value, 'Bad'));
+});
+
+test('version 1 has a fixed compatibility fixture, independent of future encoder changes', () => {
+  const v1 = '1.0akS0sxwaXMmYqtPti1q5e7ZJ9-YjpNO4bMSutV3xA';
+  assert.deepEqual(decodeSharedPuzzle(v1, 'Compatibility fixture').clues, clues);
+  assert.equal(encodePuzzle(clues), v1);
+});

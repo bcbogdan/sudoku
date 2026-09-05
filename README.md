@@ -75,7 +75,7 @@ Prettier is installed as an exact development dependency with shared settings in
 
 ## Sharing and removal
 
-Choose **Share puzzle** on a draft, puzzle details or attempt screen. Copy the displayed link (manual selection is available if clipboard access is unavailable). Its format is `/?p=<encodedPuzzle>&n=<name>`: `p` is the URL-safe Base64 encoding of 81 row-major digits, where `0` means empty; `n` is the URL-encoded name. Only original clues and the name are included, never the photo, solution or attempt history.
+Choose **Share puzzle** on a draft, puzzle details or attempt screen. Copy the displayed link (manual selection is available if clipboard access is unavailable). Its format is `/?p=<encodedPuzzle>&n=<name>`: `p` uses a versioned compact base-64 integer encoding of the 81 row-major digits (`0` means empty), capped at 47 characters instead of the original 108. New payloads start with `1.` to identify encoding version 1; the original unversioned format is retained as legacy version 0. Unknown versions are rejected. Leading empty cells are restored when decoding. Previously issued 108-character links and previously imported copies remain supported; `n` is the URL-encoded name. Only original clues and the name are included, never the photo, solution or attempt history.
 
 Opening the link validates the data and creates a local draft with a new ID and timestamp for the recipient to review. Reopening the same clues/name link reuses that imported local puzzle and preserves its attempts; refreshing switches to the local puzzle URL. Malformed or conflicting boards are rejected without saving. Shared drafts can still require corrections before they have a unique solution.
 

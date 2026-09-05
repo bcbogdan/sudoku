@@ -240,7 +240,9 @@ export async function importSharedPuzzle(encoded: string, name: string | null): 
     const store = tx.objectStore('puzzles');
     const request = store.getAll();
     request.onsuccess = () => {
-      const existing = (request.result as Puzzle[]).find((p) => p.shareKey === shared.shareKey);
+      const existing = (request.result as Puzzle[]).find(
+        (p) => p.shareKey === shared.shareKey || p.shareKey === shared.legacyShareKey,
+      );
       if (existing) {
         done(existing);
         return;
