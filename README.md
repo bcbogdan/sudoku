@@ -4,7 +4,7 @@ A Next.js app that turns a Sudoku photo into an editable board and playable game
 
 ## Run locally
 
-Requires Node.js 20.9 or newer.
+Use Node.js 22 (`nvm use` reads the included `.nvmrc`), matching the Vercel runtime.
 
 ```sh
 npm install
@@ -37,7 +37,19 @@ The browser tests require Google Chrome installed locally. They start the produc
 
 ## Vercel
 
-Import this directory as a Next.js project, with `npm install` and `npm run build`. No API key or environment variables are needed. Deployment was not performed as part of the local reconstruction.
+The repository includes `vercel.json` with the Next.js framework preset, `npm ci` for reproducible installs, and `npm run build`. `package.json` pins the deployment runtime to Node.js 22.x. Leave the output directory on the Next.js default; do not set it to `public`.
+
+1. Push the repository to your Git provider and import it in Vercel.
+2. Set the project's Root Directory to this repository's root (the folder containing `package.json` and `vercel.json`).
+3. Deploy using the checked-in settings. No API keys, environment variables, database service, or server-side storage are needed.
+
+Alternatively, run `npx vercel` from this directory to link a project and create a preview deployment; use `npx vercel --prod` when ready for production. These commands require your Vercel account and may prompt for project settings. Local `.vercel` account/project metadata is ignored by Git and Prettier.
+
+`npm ci` runs `postinstall`, which recreates all locally served OpenCV/Tesseract assets in `public/vendor`. Keep this hook enabled: these generated assets are deliberately not committed. Vercel serves them alongside the Next.js application; the uploaded Sudoku photo is processed in the browser.
+
+IndexedDB data belongs to each origin: localhost, preview URLs, and your production domain have separate collections. Existing local puzzles do not automatically transfer to production. Use a stable production domain to retain the same browser collection.
+
+This task configures deployment but does not create, link, or publish a Vercel project. See [Vercel configuration](https://vercel.com/docs/project-configuration/vercel-json) and [Node.js versions](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions).
 
 ## Limitations and provenance
 
@@ -50,3 +62,13 @@ OCR can miss or misread digits in rotated, blurry, shadowed or unusual-font phot
 IndexedDB database `sudoku-local`, schema version 1, has `puzzles` and `attempts` stores. Attempts are indexed by puzzle ID. Each move includes a position snapshot; this preserves every historical board and note set without rewriting earlier moves. Writes resolve on transaction completion. Completed attempts and finalized clues are protected in the storage API.
 
 `npm test` includes real transaction API tests using fake-indexeddb as well as pure Sudoku/history tests. See `PHASE2-VERIFICATION.md` for browser checks.
+
+## Mobile, names and appearance
+
+Use the pencil button beside a puzzle title to rename it. Names are trimmed, limited to 80 characters, and saved in IndexedDB; renaming preserves original clues and every attempt, including completed attempts. Cancel or Escape discards an unfinished rename.
+
+Layouts adapt to narrow phones, tablets and landscape screens. The keypad uses two rows whenever its board container is narrow, maintaining large touch targets. The app follows `prefers-color-scheme` automatically; its light and dark palettes cover the board, notes, highlights, errors, library and forms without a separate toggle.
+
+## Formatting
+
+Prettier is installed as an exact development dependency with shared settings in `.prettierrc.json`. Run `npm run format` to format source, styles, JSON and documentation, or `npm run format:check` to verify formatting in CI. Generated framework files, OCR assets, dependency lockfiles and test output are excluded in `.prettierignore`. Editors with Prettier support use the same repository settings.
