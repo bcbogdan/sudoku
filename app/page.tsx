@@ -339,7 +339,11 @@ export default function Sudoku() {
                 const plays = attempts.filter((a) => a.puzzleId === p.id),
                   finished = plays.filter((a) => a.completedAt !== null);
                 return (
-                  <a className="puzzle-card" key={p.id} href={puzzleURL(p.id)}>
+                  <a
+                    className="puzzle-card"
+                    key={p.id}
+                    href={plays[0] ? attemptURL(p.id, plays[0].id) : puzzleURL(p.id)}
+                  >
                     <div className="mini-board" aria-hidden="true">
                       {p.clues.map((v, i) => (
                         <span key={i}>{v || ''}</span>
