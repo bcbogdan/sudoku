@@ -1,3 +1,4 @@
+import { activeDuration, addActiveInterval } from './attempts';
 import { decodeSharedPuzzle } from './sharing';
 import { applyMove, initialPosition, randomName, type Puzzle, type Attempt } from './attempts';
 import { emptyBoard, solve, type Board } from './sudoku';
@@ -161,6 +162,7 @@ export async function startAttempt(puzzle: Puzzle): Promise<{ puzzle: Puzzle; at
         startedAt: now,
         completedAt: null,
         durationMs: null,
+        activeMs: 0,
         initial: initialPosition(current.clues),
         moves: [],
         revision: 0,
@@ -202,7 +204,11 @@ export async function recordMove(
           if (!puzzle || puzzle.status !== 'ready') throw new Error('Puzzle is unavailable.');
           const solution = solve(puzzle.clues).solution;
           if (!solution) throw new Error('Invalid puzzle.');
-          const updated = applyMove(current, puzzle.clues, solution, cell, value, note, check);
+          const timed =
+            current.activeMs === undefined
+              ? { ...current, activeMs: activeDuration(current) }
+              : current;
+          const updated = applyMove(timed, puzzle.clues, solution, cell, value, note, check);
           if (updated !== current) store.put(updated);
           done(updated);
         } catch (error) {
@@ -287,6 +293,31 @@ export async function removePuzzle(puzzle: Puzzle): Promise<void> {
           cursor.continue();
         } else done(undefined);
       };
+    };
+  });
+}
+
+export async function saveActiveInterval(
+  id: string,
+  start: number,
+  end: number,
+): Promise<Attempt | null> {
+  return write(['attempts'], (tx, done, fail) => {
+    const store = tx.objectStore('attempts'),
+      request = store.get(id);
+    request.onsuccess = () => {
+      const current = request.result as Attempt | undefined;
+      if (!current) {
+        done(null);
+        return;
+      }
+      try {
+        const updated = addActiveInterval(current, start, end);
+        if (updated !== current) store.put(updated);
+        done(updated);
+      } catch (error) {
+        fail(error instanceof Error ? error : new Error('Could not save timer.'));
+      }
     };
   });
 }

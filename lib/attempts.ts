@@ -26,6 +26,8 @@ export type Attempt = {
   startedAt: number;
   completedAt: number | null;
   durationMs: number | null;
+  activeMs?: number;
+  lastActiveEnd?: number;
   initial: Position;
   moves: Move[];
   revision: number;
@@ -76,7 +78,7 @@ export function applyMove(
     position.notes[cell] = [];
   }
   const at = Math.max(now, attempt.startedAt, attempt.moves.at(-1)?.at ?? 0),
-    elapsedMs = at - attempt.startedAt;
+    elapsedMs = attempt.activeMs ?? at - attempt.startedAt;
   const complete = position.board.every(Boolean) && validBoard(position.board);
   return {
     ...attempt,
@@ -102,4 +104,21 @@ export function randomName() {
   const nouns = ['Meadow', 'Maple', 'Harbor', 'Orchid', 'Willow', 'Cove', 'Summit', 'Fern'];
   const bytes = crypto.getRandomValues(new Uint8Array(4));
   return `${adjectives[bytes[0] % adjectives.length]} ${nouns[bytes[1] % nouns.length]} ${((bytes[2] << 8) | bytes[3]).toString(16).padStart(4, '0').toUpperCase()}`;
+}
+
+// Legacy unfinished attempts retain only time recorded at their last move.
+// We cannot reconstruct past focus, so never charge the gap since that move.
+export function activeDuration(attempt: Attempt): number {
+  return attempt.durationMs ?? attempt.activeMs ?? attempt.moves.at(-1)?.elapsedMs ?? 0;
+}
+export function addActiveInterval(attempt: Attempt, start: number, end: number): Attempt {
+  if (attempt.completedAt !== null) return attempt;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start)
+    throw new Error('Invalid active interval.');
+  const from = Math.max(start, attempt.lastActiveEnd ?? start);
+  return {
+    ...attempt,
+    activeMs: activeDuration(attempt) + Math.max(0, end - from),
+    lastActiveEnd: Math.max(end, attempt.lastActiveEnd ?? end),
+  };
 }

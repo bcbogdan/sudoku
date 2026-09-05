@@ -19,7 +19,7 @@ Use the number pad or keyboard (1–9, Delete/Backspace, arrows). Toggle pencil 
 
 The history controls and slider replay the original state and every move, including notes and mistake counts. Historical positions are read-only. Return to the latest move to continue an unfinished attempt. Completed attempts are permanently read-only in the application and can only be replayed. Start a new attempt to play again.
 
-Timing uses elapsed wall-clock time from start to completion, including time away or with the app closed. Completion freezes the duration. Move records store timestamps and elapsed durations.
+Timing counts only while the attempt page is visible and focused. Switching tabs, minimizing, leaving the page or closing the app pauses it. Focused time is saved every second and before moves; completion freezes the duration. Move records store timestamps and focused durations. Existing unfinished attempts retain the duration at their last recorded move as their baseline; completed durations stay unchanged. An abrupt browser/process termination can lose the final unsaved second.
 
 Storage is origin-specific: use the same hostname and port to access your collection. There is no account or cloud synchronization. Clearing browser/site data removes saved puzzles. Failed saves show an error without applying an unsaved move; revision checks reject concurrent stale writes from another tab.
 
@@ -76,6 +76,8 @@ Prettier is installed as an exact development dependency with shared settings in
 ## Sharing and removal
 
 Choose **Share puzzle** on a draft, puzzle details or attempt screen. Copy the displayed link (manual selection is available if clipboard access is unavailable). Its format is `/?p=<encodedPuzzle>&n=<name>`: `p` uses a versioned compact base-64 integer encoding of the 81 row-major digits (`0` means empty), capped at 47 characters instead of the original 108. New payloads start with `1.` to identify encoding version 1; the original unversioned format is retained as legacy version 0. Unknown versions are rejected. Leading empty cells are restored when decoding. Previously issued 108-character links and previously imported copies remain supported; `n` is the URL-encoded name. Only original clues and the name are included, never the photo, solution or attempt history.
+
+Share links include server-rendered Open Graph and Twitter metadata. `/api/puzzle-preview?p=<encodedPuzzle>` generates a 630×630 PNG showing only the original clues. This works for both supported encoding versions, without browser storage or JavaScript. Vercel supplies the public image origin automatically; set `NEXT_PUBLIC_SITE_URL` to your full production URL when using a custom domain or another host. Preview cards become available after deployment, and sharing platforms may cache cards for previously shared URLs.
 
 Opening the link validates the data and creates a local draft with a new ID and timestamp for the recipient to review. Reopening the same clues/name link reuses that imported local puzzle and preserves its attempts; refreshing switches to the local puzzle URL. Malformed or conflicting boards are rejected without saving. Shared drafts can still require corrections before they have a unique solution.
 
