@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. The home screen lists saved puzzles. Selecting a puzzle opens its most recently started attempt directly, including completed attempts in read-only mode. Puzzles without attempts open for review or on their details screen. Use “All attempts” from the board to view older attempts or start a new one. Choose **New puzzle** to upload a clear, upright photo or enter clues by hand. Each creation receives a random name and timestamp, and is immediately stored as an editable draft. The photo and recognized clues stay in IndexedDB on this browser/device.
+Open http://localhost:3000. The home screen lists saved puzzles. Selecting a puzzle opens its most recently started attempt directly, including completed attempts in read-only mode. Puzzles without attempts open for review or on their details screen. Use “All attempts” from the board to view older attempts or start a new one. Choose **New puzzle** to upload or paste a clear, upright photo, or enter clues by hand. Paste a copied image with your device’s Paste command (Cmd+V / Ctrl+V on desktop), or choose **Paste image** and allow clipboard access if prompted. Pasted photos follow the same local recognition, 20 MB limit, review and saving flow as uploads. Each creation receives a random name and timestamp, and is immediately stored as an editable draft. The photo and recognized clues stay in IndexedDB on this browser/device.
 
 Review the clues in the full-width board view, then confirm to start an attempt. A puzzle must have exactly one solution and at least one empty cell. Confirmed original clues are immutable. The puzzle detail screen lists every attempt and lets you resume one or start another independently.
 

@@ -260,6 +260,12 @@ h2 {
   margin: 60px auto;
   text-align: center;
 }
+.create-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
 .create-screen > p {
   line-height: 1.6;
   color: var(--muted);

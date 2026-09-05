@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { useFocusTimer } from '@/lib/use-focus-timer';
 import { puzzleShareURL } from '@/lib/sharing';
 import { peers, solve } from '@/lib/sudoku';
@@ -144,16 +144,53 @@ export default function Sudoku() {
       setBusy(false);
     }
   }
+  const onImagePaste = useEffectEvent((event: ClipboardEvent) => {
+    const file = Array.from(event.clipboardData?.files ?? []).find((file) =>
+      file.type.startsWith('image/'),
+    );
+    if (!file) return;
+    event.preventDefault();
+    void upload(file);
+  });
+  useEffect(() => {
+    if (screen !== 'create') return;
+    const paste = (event: ClipboardEvent) => onImagePaste(event);
+    document.addEventListener('paste', paste);
+    return () => document.removeEventListener('paste', paste);
+  }, [screen]);
+  async function processPhoto(file: File) {
+    if (!file.type.startsWith('image/')) throw new Error('Please choose an image file.');
+    if (file.size > 20 * 1024 * 1024) throw new Error('Please use an image smaller than 20 MB.');
+    const { readSudoku } = await import('@/lib/localSudokuReader');
+    const result = await readSudoku(file, setMessage);
+    const saved = await createPuzzle(result.board, file, result.uncertain);
+    window.location.assign(puzzleURL(saved.id));
+  }
+  async function pasteImage() {
+    await action(async () => {
+      if (!navigator.clipboard?.read)
+        throw new Error('Use your device’s Paste command, or choose a photo to upload.');
+      let items: ClipboardItems;
+      try {
+        items = await navigator.clipboard.read();
+      } catch {
+        throw new Error(
+          'Clipboard access was not available. Allow access, use Paste, or choose a photo.',
+        );
+      }
+      for (const item of items) {
+        const type = item.types.find((type) => type.startsWith('image/'));
+        if (!type) continue;
+        const blob = await item.getType(type);
+        await processPhoto(new File([blob], 'pasted-image', { type: blob.type || type }));
+        return;
+      }
+      throw new Error('No image on the clipboard. Copy an image, then paste again.');
+    });
+  }
   async function upload(file?: File) {
     if (!file) return;
-    await action(async () => {
-      if (!file.type.startsWith('image/')) throw new Error('Please choose an image file.');
-      if (file.size > 20 * 1024 * 1024) throw new Error('Please use an image smaller than 20 MB.');
-      const { readSudoku } = await import('@/lib/localSudokuReader');
-      const result = await readSudoku(file, setMessage);
-      const saved = await createPuzzle(result.board, file, result.uncertain);
-      window.location.assign(puzzleURL(saved.id));
-    });
+    await action(() => processPhoto(file));
   }
   async function begin() {
     if (!puzzle) return;
@@ -385,7 +422,7 @@ export default function Sudoku() {
           >
             <span aria-hidden="true">＋</span>
             <strong>{busy ? 'Reading your photo…' : 'Choose a Sudoku photo'}</strong>
-            <small>or drop an image here · up to 20 MB</small>
+            <small>or drop or paste an image · up to 20 MB</small>
             <input
               aria-label="Choose a Sudoku photo"
               type="file"
@@ -397,18 +434,23 @@ export default function Sudoku() {
               }}
             />
           </label>
-          <button
-            disabled={busy}
-            className="secondary"
-            onClick={() =>
-              void action(async () => {
-                const p = await createPuzzle();
-                window.location.assign(puzzleURL(p.id));
-              })
-            }
-          >
-            Enter clues by hand
-          </button>
+          <div className="create-actions">
+            <button disabled={busy} className="secondary" onClick={() => void pasteImage()}>
+              Paste image
+            </button>
+            <button
+              disabled={busy}
+              className="secondary"
+              onClick={() =>
+                void action(async () => {
+                  const p = await createPuzzle();
+                  window.location.assign(puzzleURL(p.id));
+                })
+              }
+            >
+              Enter clues by hand
+            </button>
+          </div>
           <p className="storage-note">Photos are processed and saved on your device.</p>
         </section>
       ) : null}
