@@ -1,0 +1,35 @@
+import { test, expect } from '@playwright/test';
+import { puzzleShareURL } from '../lib/sharing';
+import clues from './fixtures/expected.json';
+
+test('entry toggle, persistent undo, unhighlighted notes and long-press dial', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(puzzleShareURL('http://127.0.0.1:3187', clues, 'Controls test'));
+  await page.getByRole('button', { name: 'Confirm clues & play' }).click();
+  const cell = page.locator('#cell-0');
+  await cell.click();
+  await page.getByRole('button', { name: 'Enter 8', exact: true }).click();
+  await expect(cell).toHaveAttribute('data-value', '8');
+  await page.getByRole('button', { name: 'Enter 8', exact: true }).click();
+  await expect(cell).toHaveAttribute('data-value', '0');
+  await page.getByRole('button', { name: 'Undo move', exact: true }).click();
+  await expect(cell).toHaveAttribute('data-value', '8');
+  await page.reload();
+  await expect(cell).toHaveAttribute('data-value', '8');
+  await page.getByRole('button', { name: 'Undo move', exact: true }).click();
+  await expect(cell).toHaveAttribute('data-value', '0');
+  const bounds = (await cell.boundingBox())!;
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  await expect(page.getByRole('dialog', { name: 'Choose a number' })).toBeVisible();
+  await page.mouse.up();
+  await page.getByRole('button', { name: 'Choose 8', exact: true }).click();
+  await expect(cell).toHaveAttribute('data-value', '8');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('.note-match')).toHaveCount(0);
+  const given = page.locator('#cell-5');
+  await given.dispatchEvent('pointerdown', { button: 0, isPrimary: true, clientX: 0, clientY: 0 });
+  await page.waitForTimeout(550);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await given.dispatchEvent('pointerup');
+});

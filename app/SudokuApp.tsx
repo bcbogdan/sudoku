@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import NumberDial from './NumberDial';
 import { useFocusTimer } from '@/lib/use-focus-timer';
 import { puzzleShareURL } from '@/lib/sharing';
 import { peers, solve } from '@/lib/sudoku';
 import {
   durationLabel,
+  undoTarget,
   initialPosition,
   positionAt,
   type Attempt,
@@ -18,6 +20,7 @@ import {
   listAttempts,
   listPuzzles,
   recordMove,
+  undoLastMove,
   renamePuzzle,
   saveDraft,
   startAttempt,
@@ -47,8 +50,20 @@ export default function Sudoku() {
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState('');
   const saving = useRef(false);
-  const [shareLink, setShareLink] = useState('');
-  const [copyMessage, setCopyMessage] = useState('');
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 3000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+  const [dialCell, setDialCell] = useState<number | null>(null);
+  const hold = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdOrigin = useRef({ x: 0, y: 0 });
+  function cancelHold() {
+    if (hold.current !== null) clearTimeout(hold.current);
+    hold.current = null;
+  }
+  useEffect(() => cancelHold, []);
   const [editingName, setEditingName] = useState(false),
     [nameValue, setNameValue] = useState('');
   useEffect(() => {
@@ -199,24 +214,33 @@ export default function Sudoku() {
       window.location.assign(attemptURL(result.puzzle.id, result.attempt.id));
     });
   }
-  async function enter(value: number) {
-    if (!puzzle || readOnly || saving.current || (screen === 'play' && puzzle.clues[selected]))
-      return;
+  async function enter(value: number, cell = selected) {
+    if (!puzzle || readOnly || saving.current || (screen === 'play' && puzzle.clues[cell])) return;
+    if (value && board[cell] === value && !notesMode) value = 0;
     await action(async () => {
       if (screen === 'review') {
-        const clues = puzzle.clues.map((v, i) => (i === selected ? value : v));
+        const clues = puzzle.clues.map((v, i) => (i === cell ? value : v));
         const updated = await saveDraft(
           puzzle,
           clues,
-          puzzle.uncertain.filter((i) => i !== selected),
+          puzzle.uncertain.filter((i) => i !== cell),
         );
         setPuzzle(updated);
       } else if (attempt) {
         await focusTimer.flush();
-        const updated = await recordMove(attempt, selected, value, notesMode, check);
+        const updated = await recordMove(attempt, cell, value, notesMode, check);
         setAttempt(updated);
         setStep(updated.moves.length);
       }
+    });
+  }
+  async function undo() {
+    if (!attempt || readOnly) return;
+    await action(async () => {
+      await focusTimer.flush();
+      const updated = await undoLastMove(attempt);
+      setAttempt(updated);
+      setStep(updated.moves.length);
     });
   }
   async function removeCurrentPuzzle() {
@@ -237,14 +261,17 @@ export default function Sudoku() {
       <button
         className="secondary"
         disabled={busy}
-        onClick={() => {
-          try {
-            setShareLink(puzzleShareURL(window.location.origin, puzzle.clues, puzzle.name));
-            setCopyMessage('');
-          } catch (error) {
-            setMessage(error instanceof Error ? error.message : 'Could not share this puzzle.');
-          }
-        }}
+        onClick={() =>
+          void action(async () => {
+            const link = puzzleShareURL(window.location.origin, puzzle.clues, puzzle.name);
+            try {
+              await navigator.clipboard.writeText(link);
+              setCopied(true);
+            } catch {
+              throw new Error('Could not copy the link. Allow clipboard access and try again.');
+            }
+          })
+        }
       >
         Share puzzle
       </button>
@@ -338,6 +365,11 @@ export default function Sudoku() {
     return (
       <main>
         {header}
+        {copied ? (
+          <div className="copy-notice" role="status">
+            Link copied to clipboard.
+          </div>
+        ) : null}
         <p className="status" role="status">
           Opening your puzzles…
         </p>
@@ -595,14 +627,37 @@ export default function Sudoku() {
                     aria-pressed={selected === i}
                     tabIndex={selected === i ? 0 : -1}
                     className={`cell ${given ? 'given' : ''} ${peers(selected, i) ? 'peer' : ''} ${value && value === board[selected] ? 'match' : ''} ${selected === i ? 'selected' : ''} ${wrong ? 'wrong' : ''} ${screen === 'review' && puzzle.uncertain.includes(i) ? 'uncertain' : ''}`}
+                    onPointerDown={(e) => {
+                      cancelHold();
+                      if (given || readOnly || busy || e.button !== 0 || !e.isPrimary) return;
+                      holdOrigin.current = { x: e.clientX, y: e.clientY };
+                      hold.current = setTimeout(() => {
+                        setSelected(i);
+                        setDialCell(i);
+                        hold.current = null;
+                      }, 450);
+                    }}
+                    onPointerMove={(e) => {
+                      if (
+                        Math.hypot(
+                          e.clientX - holdOrigin.current.x,
+                          e.clientY - holdOrigin.current.y,
+                        ) > 10
+                      )
+                        cancelHold();
+                    }}
+                    onPointerUp={cancelHold}
+                    onPointerCancel={cancelHold}
+                    onPointerLeave={cancelHold}
+                    onContextMenu={(e) => {
+                      if (!given && !readOnly) e.preventDefault();
+                    }}
                     onClick={() => setSelected(i)}
                   >
                     {value || (
                       <span className="notes">
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-                          <span key={n} className={board[selected] === n ? 'note-match' : ''}>
-                            {position.notes[i].includes(n) ? n : ''}
-                          </span>
+                          <span key={n}>{position.notes[i].includes(n) ? n : ''}</span>
                         ))}
                       </span>
                     )}
@@ -627,6 +682,15 @@ export default function Sudoku() {
           </div>
           {attempt ? (
             <div className="history">
+              {!complete ? (
+                <button
+                  className="secondary"
+                  disabled={busy || readOnly || undoTarget(attempt) === undefined}
+                  onClick={() => void undo()}
+                >
+                  Undo move
+                </button>
+              ) : null}
               <div className="history-buttons">
                 <button
                   className="secondary"
@@ -675,7 +739,7 @@ export default function Sudoku() {
               </div>
               <p>
                 {step
-                  ? `${attempt.moves[step - 1].kind === 'note' ? 'Pencil note' : attempt.moves[step - 1].value ? 'Number entered' : 'Cell erased'} · Row ${Math.floor(attempt.moves[step - 1].cell / 9) + 1}, column ${(attempt.moves[step - 1].cell % 9) + 1} · ${dateLabel(attempt.moves[step - 1].at)}`
+                  ? `${attempt.moves[step - 1].kind === 'undo' ? 'Move undone' : attempt.moves[step - 1].kind === 'note' ? 'Pencil note' : attempt.moves[step - 1].value ? 'Number entered' : 'Cell erased'} · Row ${Math.floor(attempt.moves[step - 1].cell / 9) + 1}, column ${(attempt.moves[step - 1].cell % 9) + 1} · ${dateLabel(attempt.moves[step - 1].at)}`
                   : 'Original puzzle'}
                 {historical
                   ? ' · History is read-only. Return to the latest move to continue.'
@@ -700,35 +764,23 @@ export default function Sudoku() {
         </section>
       ) : null}
       {screen === 'play' || screen === 'review' ? puzzleActions : null}
-      {shareLink ? (
-        <section className="share-panel" aria-label="Share puzzle link">
-          <div>
-            <h2>Share this puzzle</h2>
-            <button className="secondary" onClick={() => setShareLink('')}>
-              Close share link
-            </button>
-          </div>
-          <p>
-            Only the original clues and name are shared. Opening the link saves a copy in the
-            recipient’s browser.
-          </p>
-          <label htmlFor="share-link">Puzzle link</label>
-          <input id="share-link" readOnly value={shareLink} onFocus={(e) => e.target.select()} />
-          <button
-            className="primary"
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(shareLink);
-                setCopyMessage('Link copied.');
-              } catch {
-                setCopyMessage('Select the link above and copy it manually.');
-              }
-            }}
-          >
-            Copy link
-          </button>
-          <span role="status">{copyMessage}</span>
-        </section>
+      {dialCell !== null ? (
+        <NumberDial
+          onChoose={(value) => {
+            const cell = dialCell;
+            setDialCell(null);
+            void enter(value, cell);
+          }}
+          onClose={() => {
+            setDialCell(null);
+            document.getElementById(`cell-${dialCell}`)?.focus();
+          }}
+        />
+      ) : null}
+      {copied ? (
+        <div className="copy-notice" role="status">
+          Link copied to clipboard.
+        </div>
       ) : null}
       <p className="status" role="status" aria-live="polite">
         {message}

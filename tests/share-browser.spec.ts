@@ -10,10 +10,11 @@ test('shared links import, reopen without duplication, and removal requires conf
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Shared weekend 🧩');
   expect(page.url()).toContain('?puzzle=');
   const localURL = page.url();
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.getByRole('button', { name: 'Share puzzle', exact: true }).click();
-  const link = await page.getByLabel('Puzzle link', { exact: true }).inputValue();
-  expect(link).toEqual(shared);
-  await page.getByRole('button', { name: 'Close share link' }).click();
+  await expect(page.getByText('Link copied to clipboard.', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toEqual(shared);
+  await expect(page.getByLabel('Puzzle link', { exact: true })).toHaveCount(0);
   await page.goto(shared);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Shared weekend 🧩');
   expect(page.url()).toEqual(localURL);

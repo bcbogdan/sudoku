@@ -6,6 +6,8 @@ import {
   initialPosition,
   positionAt,
   durationLabel,
+  applyUndo,
+  undoTarget,
   type Attempt,
 } from '../lib/attempts';
 import {
@@ -13,6 +15,7 @@ import {
   saveDraft,
   startAttempt,
   recordMove,
+  undoLastMove,
   listPuzzles,
   listAttempts,
 } from '../lib/storage';
@@ -131,4 +134,36 @@ test('renaming persists normalized names without modifying original clues or loc
   await assert.rejects(renamePuzzle(renamed, '  '), /1 and 80/);
   await assert.rejects(renamePuzzle(renamed, 'x'.repeat(81)), /1 and 80/);
   await assert.rejects(renamePuzzle(started.puzzle, 'Stale name'), /another tab/);
+});
+
+test('undo restores notes, entries and mistakes while preserving each history snapshot', () => {
+  let a = applyMove(attempt(), clues, solution, 0, 2, true, true, 2000);
+  a = applyMove(a, clues, solution, 0, 1, false, true, 3000);
+  const before = structuredClone(a.moves);
+  a = applyUndo(a, 4000);
+  assert.equal(positionAt(a).board[0], 0);
+  assert.deepEqual(positionAt(a).notes[0], [2]);
+  assert.equal(positionAt(a).mistakes, 0);
+  assert.deepEqual(a.moves.slice(0, 2), before);
+  a = applyUndo(a, 5000);
+  assert.deepEqual(positionAt(a), a.initial);
+  assert.equal(undoTarget(a), undefined);
+  assert.equal(applyUndo(a), a);
+  a = applyMove(a, clues, solution, 1, 5, false, true, 6000);
+  assert.deepEqual(positionAt(applyUndo(a)), a.initial);
+});
+
+test('undo is persistent, rejects stale writes and cannot edit completed attempts', async () => {
+  const p = await createPuzzle(clues);
+  const { attempt: a } = await startAttempt(p);
+  const moved = await recordMove(a, 0, 2, true, true);
+  const undone = await undoLastMove(moved);
+  assert.deepEqual((await listAttempts(p.id))[0], undone);
+  assert.deepEqual(positionAt(undone), a.initial);
+  await assert.rejects(undoLastMove(moved), /another tab/);
+  const almost = solution.slice();
+  almost[0] = 0;
+  const started = await startAttempt(await createPuzzle(almost));
+  const finished = await recordMove(started.attempt, 0, solution[0], false, true);
+  await assert.rejects(undoLastMove(finished), /read-only/);
 });

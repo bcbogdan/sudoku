@@ -14,7 +14,8 @@ export type Puzzle = {
 export type Position = { board: Board; notes: number[][]; mistakes: number };
 export type Move = {
   cell: number;
-  kind: 'entry' | 'note';
+  kind: 'entry' | 'note' | 'undo';
+  undoOf?: number;
   value: number;
   at: number;
   elapsedMs: number;
@@ -120,5 +121,37 @@ export function addActiveInterval(attempt: Attempt, start: number, end: number):
     ...attempt,
     activeMs: activeDuration(attempt) + Math.max(0, end - from),
     lastActiveEnd: Math.max(end, attempt.lastActiveEnd ?? end),
+  };
+}
+
+export function undoTarget(attempt: Attempt): number | undefined {
+  const active: number[] = [];
+  attempt.moves.forEach((move, index) => {
+    if (move.kind === 'undo') active.pop();
+    else active.push(index);
+  });
+  return active.at(-1);
+}
+export function applyUndo(attempt: Attempt, now = Date.now()): Attempt {
+  if (attempt.completedAt !== null) throw new Error('Completed attempts are read-only.');
+  const target = undoTarget(attempt);
+  if (target === undefined) return attempt;
+  const position = structuredClone(positionAt(attempt, target));
+  const cell = attempt.moves[target].cell;
+  return {
+    ...attempt,
+    revision: attempt.revision + 1,
+    moves: [
+      ...attempt.moves,
+      {
+        cell,
+        kind: 'undo',
+        undoOf: target,
+        value: position.board[cell],
+        at: Math.max(now, attempt.startedAt, attempt.moves.at(-1)?.at ?? 0),
+        elapsedMs: activeDuration(attempt),
+        position,
+      },
+    ],
   };
 }

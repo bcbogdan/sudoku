@@ -1,4 +1,4 @@
-import { activeDuration, addActiveInterval } from './attempts';
+import { activeDuration, addActiveInterval, applyUndo } from './attempts';
 import { decodeSharedPuzzle } from './sharing';
 import { applyMove, initialPosition, randomName, type Puzzle, type Attempt } from './attempts';
 import { emptyBoard, solve, type Board } from './sudoku';
@@ -179,6 +179,7 @@ export async function recordMove(
   value: number,
   note: boolean,
   check: boolean,
+  undo = false,
 ): Promise<Attempt> {
   return write(['puzzles', 'attempts'], (tx, done, fail) => {
     const store = tx.objectStore('attempts'),
@@ -208,7 +209,9 @@ export async function recordMove(
             current.activeMs === undefined
               ? { ...current, activeMs: activeDuration(current) }
               : current;
-          const updated = applyMove(timed, puzzle.clues, solution, cell, value, note, check);
+          const updated = undo
+            ? applyUndo(timed)
+            : applyMove(timed, puzzle.clues, solution, cell, value, note, check);
           if (updated !== current) store.put(updated);
           done(updated);
         } catch (error) {
@@ -320,4 +323,8 @@ export async function saveActiveInterval(
       }
     };
   });
+}
+
+export function undoLastMove(attempt: Attempt): Promise<Attempt> {
+  return recordMove(attempt, 0, 0, false, false, true);
 }
